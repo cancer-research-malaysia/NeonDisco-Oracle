@@ -2,8 +2,8 @@
 # It uses the QuestionClassifier to determine the type of question before routing to appropriate modules.
 
 from src.question_classifier import QuestionClassifier
-from src.utils import question_classifier_llm, plotter_llm, query_llm, stats_llm, error_checker_llm, guideline_llm, summarize_dataframe
-from src.agents import QueryAgent, PlotAgent, StatsAgent, ErrorAgent, GuidelineAgent
+from src.utils import question_classifier_llm, plotter_llm, query_llm, stats_llm, error_checker_llm, summarize_dataframe
+from src.agents import QueryAgent, PlotAgent, StatsAgent, ErrorAgent
 from src.index_manager import IndexManager
 import traceback
 import numpy as np
@@ -34,7 +34,6 @@ class Manager:
         self.query_agent = QueryAgent(df.copy(),query_llm())
         self.plot_agent = PlotAgent(df.copy(),plotter_llm())
         self.stats_agent = StatsAgent(df.copy(),stats_llm())
-        self.guideline_agent = GuidelineAgent(llm_client = guideline_llm(), search_fn = self.search_fn, embed_fn = self.embed_fn, top_k = 10)
         self.error_agent = ErrorAgent(error_checker_llm())
 
         # Summarize the dataframe - will need every time we instantiate this class
@@ -67,8 +66,10 @@ class Manager:
             agent = self.stats_agent
             logger.info("Question asked and classified as 'stats'. Routing to StatsAgent.")
         elif qtype == "guideline":
-            logger.info("Question asked and classified as 'guideline'. Routing to GuidelineAgent.")
-            return self.guideline_agent.handle(question, messages=context)
+            logger.info("Question asked and classified as 'guideline'. Guideline functionality disabled.")
+            return {"type": "text",
+                      "code": None,
+                      "data": "This application is designed to help explore immune-related adverse events (irAEs) in the FAERS dataset. Questions about clinical guidelines, management recommendations or treatment guidance are not supported in this version."}
         else:
             logger.warning("Question type not recognized. Returning error.", qtype)
             return({"type": "text",

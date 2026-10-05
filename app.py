@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from src.utils import build_context, explanation_llm, setup_logging
 from matplotlib_venn._common import VennDiagram
-from src.agents.guideline_agent import link_short_citations
 import urllib.parse
 import re
 import uuid
@@ -33,7 +32,7 @@ logger.info(
 
 # Set up streamlit frontend 
 st.set_page_config(
-    page_title = "irAE Dataset LLM Assistant",
+    page_title = "NeonDisco Transcript-Level Data Explorer",
     layout = "wide",
     initial_sidebar_state = "collapsed"
 )
@@ -165,9 +164,25 @@ plt.rcParams.update({"font.size": 14})
 #----------------# Main App Code #------------------------
 # load cleaned data
 @st.cache_data
-def load_data():
-    return pd.read_csv("data/irae_data_cleaned.csv")
-df = load_data()
+def load_data(data_path="data-nd/mybrca-neondisco-transcript-level-data.tsv"):
+    return pd.read_csv(data_path, sep='\t')
+
+# Check if a data_path is provided in the URL query parameters
+try:
+    # Use st.query_params for newer Streamlit versions
+    query_params = st.query_params
+except AttributeError:
+    # Fallback for older versions
+    try:
+        query_params = st.experimental_get_query_params()
+    except AttributeError:
+        query_params = {}
+
+if "data" in query_params:
+    data_path = query_params["data"][0]
+    df = load_data(data_path)
+else:
+    df = load_data()
 
 # Load FAISS index ONCE globally
 @st.cache_resource
@@ -194,19 +209,19 @@ if "explanation_agent" not in st.session_state:
 explanation_agent = st.session_state["explanation_agent"]
 
 # Setup app layout 
-st.markdown("## **irAE.AI: AI-powered exploration of real-world immune-related adverse events**")
+st.markdown("## **NeonDisco: AI-powered exploration of transcript-level neoantigen fusion data**")
 
 # Introduction section
 st.markdown("""
             
-Welcome to **irAE.AI**, a natural-language interface to explore immune-related adverse events (irAEs) reported in **FAERS**.      
-**Citation:**  Fort G, Stone D, Lin CN, Young A, and Tan AC. (2026). irAE.AI: AI powered exploration of real-world immune-related adverse events. JAMIA Open. doi: https://doi.org/10.1093/jamiaopen/ooag094
+Welcome to **NeonDisco**, a natural-language interface to explore transcript-level neoantigen fusion data.      
+**Citation:** TBA
 
 Use this tool to:
-- Ask questions about specific cancer types, drugs, toxicities, or current irAE guidelines  
-- Generate plots or summaries of irAE patterns  
+- Ask questions about specific gene fusions, transcripts, expression levels or fusion characteristics  
+- Generate plots or summaries of fusion patterns 
 - Automatically produce reproducible Python code
-""" )
+""")
 
 st.link_button("See a video demo", "https://vimeo.com/1167829596?share=copy&fl=sv&fe=ci")
 
@@ -229,29 +244,27 @@ with col1:
 with col2:
     st.metric("Number of Columns", f"{df.shape[1]}", border=True)
 
-st.caption("Below is a preview of the FAERS irAE dataset:")
+st.caption("Below is a preview of the NeonDisco transcript-level fusion data:")
 st.dataframe(df.head(10), width='stretch', hide_index=True)
 
 # Option to view column descriptions in a collapsible section
 with st.expander("View column descriptions"):
     st.markdown("""
-    - **patient_id**: Unique identifier for each case 
-    - **irae**: irAE(s) reported
-    - **irae_type**: Broader category of irAE
-    - **outcome**: Patient outcome 
-    - **ici_drug_name**: Immunotherapy drug(s) administered 
-    - **brand_name**: Brand name(s) of immunotherapy drug(s) administered  
-    - **drug_class**: Class of immunotherapy drug(s)
-    - **cancer_drug_name**: Other anti-cancer or chemotherapy drugs administered
-    - **combination status**: Whether immunotherapy was given in combination with other drugs
-    - **other_drug_name**: Other non-cancer and non-ici drugs administered
-    - **tumor_type**: Reported primary cancer
-    - **time_to_onset**: Weeks from drug start to irAE onset
-    - **age**: Patient age in years
-    - **age_group**: Groups by age range
-    - **sex**: Patient sex
-    - **quarter**: FAERS reporting quarter
-    - **year**: FAERS reporting year   
+    - **fusion_id**: Unique identifier for each fusion event
+    - **gene1**: First gene in the fusion
+    - **gene2**: Second gene in the fusion
+    - **fusion_type**: Type of gene fusion (e.g., in-frame, out-of-frame)
+    - **strand**: Strand orientation of the fusion
+    - **chromosome1**: Chromosome of first gene
+    - **chromosome2**: Chromosome of second gene
+    - **breakpoint1**: Breakpoint position of first gene
+    - **breakpoint2**: Breakpoint position of second gene
+    - **expression_level**: Expression level (TPM or RPKM)
+    - **read_count**: Number of reads supporting the fusion
+    - **confidence_score**: Fusion confidence score
+    - **transcript_id**: Transcript identifier
+    - **fusion_name**: Name of the gene fusion
+    - **gene_fusion_info**: Additional information about the gene fusion
     """)
 
 st.markdown("---")
@@ -381,7 +394,7 @@ if result is not None:
                                 "editable": True,
                                 "toImageButtonOptions": {
                                     "format": "png",
-                                    "filename": "irAE_plot",
+                                    "filename": "fusion_plot",
                                     "scale": 3
                                 }}
             
@@ -415,11 +428,10 @@ if result is not None:
             st.error("There was an issue processing your request. Please try again or rephrase your question.")
             
         else:
-            # If the returned data is a string, show it with links for (ASCO), (NCCN), (SITC)
+            # If the returned data is a string, show it as plain text (no citations)
             if isinstance(res_data, str):
                 # render RAG output with clickable links if applicable
-                html = link_short_citations(res_data)
-                st.markdown(html, unsafe_allow_html=True)
+                st.markdown(res_data, unsafe_allow_html=True)
 
             else:
                 # non-string results (dict, list, etc): leave as-is
